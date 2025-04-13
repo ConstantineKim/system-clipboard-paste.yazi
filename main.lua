@@ -1,54 +1,37 @@
--- Meant to run at async context. (yazi system-clipboard)
-
-local selected_or_hovered = ya.sync(function()
-	local tab, paths = cx.active, {}
-	for _, u in pairs(tab.selected) do
-		paths[#paths + 1] = tostring(u)
-	end
-	if #paths == 0 and tab.current.hovered then
-		paths[1] = tostring(tab.current.hovered.url)
-	end
-	return paths
-end)
+-- Meant to run at async context. (yazi system-clipboard-paste)
 
 return {
-	entry = function()
-		ya.manager_emit("escape", { visual = true })
+    entry = function()
+        -- 获取当前活动标签页的当前目录
+        local current_dir = tostring(cx.active.current.dir.url)
 
-		local urls = selected_or_hovered()
+        -- 调用 ClipBoard 工具的 paste 命令
+        local status, err =
+            Command("cb")
+            :arg("paste")
+            :arg(current_dir)
+            :spawn()
+            :wait()
 
-		if #urls == 0 then
-			return ya.notify({ title = "System Clipboard", content = "No file selected", level = "warn", timeout = 5 })
-		end
-
-		-- ya.notify({ title = #urls, content = table.concat(urls, " "), level = "info", timeout = 5 })
-
-		local status, err =
-				Command("cb")
-				:arg("copy")
-				:args(urls)
-				:spawn()
-				:wait()
-
-		if status or status.succes then
-			ya.notify({
-				title = "System Clipboard",
-				content = "Succesfully copied the file(s) to system clipboard",
-				level = "info",
-				timeout = 5,
-			})
-		end
-
-		if not status or not status.success then
-			ya.notify({
-				title = "System Clipboard",
-				content = string.format(
-					"Could not copy selected file(s) %s",
-					status and status.code or err
-				),
-				level = "error",
-				timeout = 5,
-			})
-		end
-	end,
+        if status and status.success then
+            ya.notify({
+                title = "System Clipboard",
+                content = "Successfully pasted the file(s) from system clipboard",
+                level = "info",
+                timeout = 5
+            })
+            -- 刷新当前目录以显示新粘贴的文件
+            ya.manager_emit("reload", { path = current_dir })
+        else
+            ya.notify({
+                title = "System Clipboard",
+                content = string.format(
+                    "Could not paste file(s) from system clipboard: %s",
+                    status and status.code or err
+                ),
+                level = "error",
+                timeout = 5
+            })
+        end
+    end
 }
